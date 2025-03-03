@@ -1,0 +1,65 @@
+version: "3.7"
+
+services:
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: transactions
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:5.5.3
+    container_name: zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:5.5.3
+    container_name: kafka
+    restart: always
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_BROKER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+
+  transaction-service:
+    build:
+      context: .
+      dockerfile: src/TransactionService/Dockerfile
+    container_name: transaction-service
+    restart: always
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=transactions;Username=postgres;Password=postgres"
+    ports:
+      - "5001:5001"
+
+  antifraud-service:
+    build:
+      context: .
+      dockerfile: src/AntiFraudService/Dockerfile
+    container_name: antifraud-service
+    restart: always
+    depends_on:
+      - kafka
+    ports:
+      - "5002:5002"
+
+volumes:
+  postgres_data:
